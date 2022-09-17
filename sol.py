@@ -6,6 +6,7 @@ import csv
 import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.cluster import DBSCAN
+import matplotlib.pyplot as plt
 
 def cart2pol(x, y):
     rho = np.sqrt(x ** 2 + y ** 2)
@@ -260,7 +261,7 @@ def goodFeaturesToTrack(img_path, ncorners = 10):
     showImg(img)
     return img, corners
 
-def genFinalResult(points, fnameTxt='outPoints.txt', fnameImg='outMap.jpg'):
+def genFinalResult(points, fnameTxt='outPoints.json', fnameImg='outMap.jpg'):
     points = points.tolist()
     points.append(points[0])
     points = np.array(points)
