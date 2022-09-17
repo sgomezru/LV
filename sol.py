@@ -241,7 +241,26 @@ def showImg(img, binary=True):
     else:
         fig = px.imshow(img)
     fig.show()
-    
+
+def lineSegmentDetector(img_path):
+    img = cv.imread(img_path, 0)
+    dil = cv.dilate(img, kernel=np.ones((3,3), np.uint8), iterations = 1)
+    lsd = cv.createLineSegmentDetector(0)
+    lines = lsd.detect(dil)[0] #Position 0 of the returned tuple are the detected lines
+    drawn_img = lsd.drawSegments(img,lines)
+    showImg(drawn_img, False)
+    return drawn_img
+
+def goodFeaturesToTrack(img_path, ncorners = 10):
+    img = cv.imread(img_path, 0)
+    corners = cv.goodFeaturesToTrack(img,ncorners,0.01,10)
+    corners = np.int0(corners)
+    for i in corners:
+        x,y = i.ravel()
+        cv.circle(img,(x,y),3,255,-1)
+    showImg(img)
+    return img, corners
+
 if __name__ == '__main__':
     # data_dir = '/'.join(os.path.abspath(os.path.dirname(__file__)).split('/')[:-1]) + '/data'
     # fpath = os.path.join(data_dir, 'out_startplatz_cut.txt')
@@ -281,4 +300,8 @@ if __name__ == '__main__':
         img, metadata, datatmp = data2Image(X_complete)
         cv.imwrite("original.jpg", img)
         showImg(img)
+        lsdImg = lineSegmentDetector('original.jpg')
+        cv.imwrite('lsdImage.jpg', lsdImg)
+        gfttImg, cornerPoints = goodFeaturesToTrack('original.jpg', 10)
+        cv.imwrite('gfttImage.jpg', gfttImg)
 
