@@ -36,6 +36,9 @@ written in the notebook itself. So please read it if you are interested in it. ;
   ```
 2. Then, it's just simply executing the script, a few images will pop in probably your browser,
   and some will be written into the working directory. Also the output json file.
+  ```bash
+  python sol.py
+  ```
 3. Inside the script there are some execution arguments that can be manually deactivated to False,
   they are on True by default, if desired. (Should have implemented through sys and command line,
   but didn't for now).
