@@ -6,7 +6,6 @@ import csv
 import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.cluster import DBSCAN
-import sys
 
 def cart2pol(x, y):
     rho = np.sqrt(x ** 2 + y ** 2)
@@ -261,14 +260,31 @@ def goodFeaturesToTrack(img_path, ncorners = 10):
     showImg(img)
     return img, corners
 
+def genFinalResult(points, fnameTxt='outPoints.txt', fnameImg='outMap.jpg'):
+    points = points.tolist()
+    points.append(points[0])
+    points = np.array(points)
+    import json
+    with open(fnameTxt, 'w') as f:
+        json.dump(points.tolist(), f)
+    # I could have drawn it in a new blank image with opencv, but did this just for facility.
+    fig = go.Figure(data=go.Scatter(x=points[:,0], y=points[:,1], mode='lines'))
+    fig.update_layout(yaxis=dict(scaleanchor="x", scaleratio=1, \
+                                               visible=False, showgrid=False), xaxis=dict(scaleanchor="x", \
+                                               scaleratio=1, visible=False, showgrid=False))
+    fig.write_image(fnameImg)
+
 if __name__ == '__main__':
     # data_dir = '/'.join(os.path.abspath(os.path.dirname(__file__)).split('/')[:-1]) + '/data'
     # fpath = os.path.join(data_dir, 'out_startplatz_cut.txt')
-    argDBSCAN = False
-    argNeighbor = True
-    argSplitMerge = False
+    # Should be sys arguments actually, so, sorry for this poor sketch right now.
+    argDBSCAN = True
     argImage = True
-    argPlot = False
+    # REQUIRED FOR FINAL RESULTS#
+    argNeighbor = True
+    argSplitMerge = True
+    argPlot = True
+    #############################
     fpath = 'out_startplatz_cut.txt'
     Measurements, MeasurementsByAngle = read_data(fpath)
     X_complete = arr_pol2cart(Measurements)
@@ -290,6 +306,7 @@ if __name__ == '__main__':
             plotCartesian(points, 'markers', title=f'With whole original data: After split & merge with threshold = 50')
         if argNeighbor:
             points, _, _ = callback(validReducedData)
+            genFinalResult(points)
             if argPlot:
                 plotCartesian(points, 'lines', title=f'With reduced data & "noise removal": After split & merge with threshold = 50')
                 thresh = 50, 100, 200
