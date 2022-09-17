@@ -1,10 +1,11 @@
 import os
 import math
 import numpy as np
+import cv2 as cv
 import csv
 import plotly.graph_objects as go
+import plotly.express as px
 from sklearn.cluster import DBSCAN
-import matplotlib.pyplot as plt
 import sys
 
 def cart2pol(x, y):
@@ -205,14 +206,50 @@ def callback(data, threshold = 50):
 
 ############################# Split & Merge finish ##################################################
 
+
+################# As an image part ##################################
+
+### Note: I could have also taken directly an exported image from plotly/matplotlib.pyplot
+### which I believe uses some kind of interpolation to plot stuff.
+def data2Image(X, scaling = 0.01):
+    # Just scaling, and making data integer, to map into image pixels.
+    meta = {'scaling': scaling}
+    pads = 5
+    tmp = X.copy()
+    tmp *= scaling
+    tmp = np.around(tmp)
+    tmp = tmp.astype(int)
+    # Moving the data into the first quadrant basically
+    min_x, max_x = np.min(tmp[:, 0]), np.max(tmp[:, 0])
+    min_y, max_y = np.min(tmp[:, 1]), np.max(tmp[:, 1])
+    meta['width'], meta['height'] = max_x + 1 - min_x, max_y + 1 - min_y
+    meta['offset_x'], meta['offset_y'] = min_x, min_y
+    meta['pad'] = pads
+    tmp[:, 0] -= min_x
+    tmp[:, 1] -= min_y
+    img = np.full((meta['width'], meta['height']), 0, dtype=np.uint8)
+    # Might be a better numpy advanced indexing method(?) 
+    for x, y in tmp:
+        img[x,y] = 255
+    for i in range(pads):
+        img = np.pad(img, (1,1), constant_values = (0,0))
+    return img, meta, tmp
+
+def showImg(img, binary=True):
+    if binary:
+        fig = px.imshow(img, binary_string=True)
+    else:
+        fig = px.imshow(img)
+    fig.show()
     
 if __name__ == '__main__':
     # data_dir = '/'.join(os.path.abspath(os.path.dirname(__file__)).split('/')[:-1]) + '/data'
     # fpath = os.path.join(data_dir, 'out_startplatz_cut.txt')
     argDBSCAN = False
     argNeighbor = True
-    argSplitMerge = True
-    argPlot = True
+    argSplitMerge = False
+    argImage = True
+    argPlot = False
     fpath = 'out_startplatz_cut.txt'
     Measurements, MeasurementsByAngle = read_data(fpath)
     X_complete = arr_pol2cart(Measurements)
@@ -240,4 +277,8 @@ if __name__ == '__main__':
                 for t in thresh:
                     points, _, _ = callback(validData, t)
                     plotCartesian(points, 'lines', title=f'With whole data after "noise removal": After split & merge with threshold = {t}')
+    if argImage:
+        img, metadata, datatmp = data2Image(X_complete)
+        cv.imwrite("original.jpg", img)
+        showImg(img)
 
