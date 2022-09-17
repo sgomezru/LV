@@ -5,6 +5,7 @@ import csv
 import plotly.graph_objects as go
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
+import sys
 
 def cart2pol(x, y):
     rho = np.sqrt(x ** 2 + y ** 2)
@@ -112,13 +113,131 @@ def resultsDBScan(X, eps = 500, min_samples = 3):
     plt.title(f"Estimated number of clusters: {n_clusters_} \nNoise points found: {n_noise_}")
     plt.show()
 
+def distNoiseRemoval(X, threshold = 500):
+    validIndices = []
+    invalidIndices = []
+    for idx in range(len(X) - 1):
+        if (np.linalg.norm(X[idx] - X[idx - 1]) > threshold) and (np.linalg.norm(X[idx] - X[idx + 1]) > threshold):
+            invalidIndices.append(idx)
+        else:
+            validIndices.append(idx)
+    # Only for last point(Could have use % operator before as well)
+    idx = len(X)- 1
+    if (np.linalg.norm(X[-1] - X[-2]) > threshold) and (np.linalg.norm(X[-1] - X[0]) > threshold):
+        invalidIndices.append(idx)
+    else:
+        validIndices.append(idx)
+    return X[validIndices], validIndices, invalidIndices
+
+def plotCartesian(X, markerType='markers', title=''):
+    fig = go.Figure(data=go.Scatter(x=X[:,0], y=X[:,1], mode=markerType))
+    fig.update_layout(title_text=title, yaxis=dict(scaleanchor="x", scaleratio=1))
+    fig.show()
+
+##################### Split and Merge Algorithm (IEPF) part ##################################
+
+def Polar2Cartesian(r, alpha):
+    return np.transpose(np.array([np.cos(alpha)*r, np.sin(alpha)*r]))
+
+def Cartesian2Polar(x, y):
+    r = np.sqrt(x**2 + y**2)
+    phi = np.arctan2(y, x)
+    return r, phi
+
+### Note: Commented the means, since different lines would be created in contrast to originally scaled data.
+### my reasoning about it may be wrong though, but I guess it's not needed for now anyway.
+def GetPolar(X,Y):
+    # X = X-np.mean(X)
+    # Y = Y-np.mean(Y)
+    # fit line through the first and last point (X and Y contains 2 points, start and end of the line)
+    k,n = np.polyfit(X,Y,1)
+    alpha = math.atan(-1/k) # in radians
+    ro = n/(math.sin(alpha)-k*math.cos(alpha))
+    return ro,alpha
+
+def CheckPolar(ro,alpha):
+    if ro < 0:
+        alpha = alpha + math.pi
+        if alpha > math.pi:
+            alpha = alpha-2*math.pi
+        ro = -ro
+    return ro,alpha
+
+### Note: Weird here, taking abs of a norm (?)
+def getDistance(P,Ps,Pe): # point to line distance, where the line is given with points Ps and Pe
+    if np.all(np.equal(Ps,Pe)):
+        return np.linalg.norm(P-Ps)
+    return np.divide(np.abs(np.linalg.norm(np.cross(Pe-Ps,Ps-P))),np.linalg.norm(Pe-Ps))
+
+def GetMostDistant(P):
+    dmax = 0
+    index = -1
+    for i in range(1,P.shape[0]):
+        d = getDistance(P[i,:],P[0,:],P[-1,:])
+        if (d > dmax):
+            index = i
+            dmax = d
+    return dmax,index
+
+def SplitAndMerge(P,threshold):
+    d,ind = GetMostDistant(P)
+    if (d>threshold):
+        P1 = SplitAndMerge(P[:ind+1,:],threshold) # split and merge left array
+        P2 = SplitAndMerge(P[ind:,:],threshold) # split and merge right array
+        points = np.vstack((P1[:-1,:],P2))
+    else:
+        points = np.vstack((P[0,:],P[-1,:]))
+    return points
+
+def callback(data, threshold = 50):
+    points = SplitAndMerge(data, threshold)
+    rs, alphas = [], []
+    for i in range(points.shape[0]-1):
+        r, alpha = GetPolar(points[i:i+2,0], points[i:i+2,1])
+        r, alpha = CheckPolar(r, alpha)
+        rs.append(r)
+        alphas.append(alpha)
+        
+    print(f"Original number of points: {data.shape}")
+    print(f"After split and merge with threshold = {threshold}: {points.shape}")
+
+    return points, np.array(rs), np.array(alphas)
+
+############################# Split & Merge finish ##################################################
+
+    
 if __name__ == '__main__':
     # data_dir = '/'.join(os.path.abspath(os.path.dirname(__file__)).split('/')[:-1]) + '/data'
     # fpath = os.path.join(data_dir, 'out_startplatz_cut.txt')
+    argDBSCAN = False
+    argNeighbor = True
+    argSplitMerge = True
+    argPlot = True
     fpath = 'out_startplatz_cut.txt'
     Measurements, MeasurementsByAngle = read_data(fpath)
     X_complete = arr_pol2cart(Measurements)
     X_reduced = arr_pol2cart(reduce_data(MeasurementsByAngle))
     print("Complete data, and reduced data shapes:", X_complete.shape, X_reduced.shape)
-    resultsDBScan(X_complete)
+    if argDBSCAN:
+        resultsDBScan(X_complete)
+    if argNeighbor:
+        validData, _, _ = distNoiseRemoval(X_complete)
+        validReducedData, _, _ = distNoiseRemoval(X_reduced)
+        print(f"Original num points: {len(X_complete)}\t Num points after noise: {len(validData)}")
+        if argPlot:
+            plotCartesian(validData, title='Graph as points with all data after noise removal')
+            plotCartesian(validData, 'lines', title='Graph as lines with all data after noise removal')
+            plotCartesian(validReducedData, 'lines', title='Graph as lines with all data after noise removal')
+    if argSplitMerge:
+        points, _, _ = callback(X_complete)
+        if argPlot:
+            plotCartesian(points, 'markers', title=f'With whole original data: After split & merge with threshold = 50')
+        if argNeighbor:
+            points, _, _ = callback(validReducedData)
+            if argPlot:
+                plotCartesian(points, 'lines', title=f'With reduced data & "noise removal": After split & merge with threshold = 50')
+                thresh = 50, 100, 200
+                for t in thresh:
+                    points, _, _ = callback(validData, t)
+                    plotCartesian(points, 'lines', title=f'With whole data after "noise removal": After split & merge with threshold = {t}')
 
